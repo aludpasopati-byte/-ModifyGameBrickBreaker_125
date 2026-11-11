@@ -262,6 +262,44 @@ def drawPopups():
 
 
 # ---------------------------------------------------------------
+# Petir di sekitar bola
+# ---------------------------------------------------------------
+def lightningPoints(x0, y0, angle, length, segments, jitter):
+    """Buat garis bergerigi dari (x0, y0) ke arah angle."""
+    pts = [(x0, y0)]
+    for k in range(1, segments + 1):
+        d = length * k / segments
+        px = x0 + math.cos(angle) * d
+        py = y0 + math.sin(angle) * d
+        if k < segments:  # ujung petir tidak digeser
+            off = random.uniform(-jitter, jitter)
+            px += -math.sin(angle) * off
+            py += math.cos(angle) * off
+        pts.append((px, py))
+    return pts
+
+
+def drawLightning(ball):
+    # Saat bola kena blok (zap > 0), petirnya lebih banyak dan lebih panjang
+    strong = ball.zap > 0
+    count = random.randint(5, 7) if strong else random.randint(2, 4)
+
+    for _ in range(count):
+        angle = random.uniform(0, math.tau)
+        if strong:
+            length = random.uniform(50, 90)
+            segments, jitter = 7, 8
+        else:
+            length = random.uniform(18, 38)
+            segments, jitter = 5, 5
+        pts = lightningPoints(ball.posx, ball.posy, angle,
+                              length, segments, jitter)
+        pygame.draw.lines(screen, (70, 130, 255), False, pts, 4)   # cahaya biru
+        pygame.draw.lines(screen, (190, 230, 255), False, pts, 2)  # inti terang
+        pygame.draw.lines(screen, WHITE, False, pts, 1)            # pusat putih
+
+
+# ---------------------------------------------------------------
 # Kelas Striker
 # ---------------------------------------------------------------
 class Striker:
@@ -344,6 +382,7 @@ class Ball:
         self.speed = speed
         self.color = color
         self.xFac, self.yFac = 1, 1
+        self.zap = 0  # sisa frame petir kuat setelah kena blok
         self.ball = pygame.Rect(0, 0, radius * 2, radius * 2)
         self._syncRect()
 
@@ -351,6 +390,9 @@ class Ball:
         self.ball.center = (int(self.posx), int(self.posy))
 
     def display(self):
+        # Petir digambar lebih dulu supaya bola tetap terlihat di atasnya
+        drawLightning(self)
+
         # Bola api: lapisan merah -> oranye -> kuning -> inti putih panas
         pos = (int(self.posx), int(self.posy))
         flicker = random.randint(0, 2)  # sedikit berkedip seperti api
@@ -360,6 +402,9 @@ class Ball:
         pygame.draw.circle(screen, (255, 250, 220), pos, max(2, self.radius // 3))
 
     def update(self):
+        if self.zap > 0:
+            self.zap -= 1
+
         self.posx += self.xFac * self.speed
         self.posy += self.yFac * self.speed
 
@@ -381,6 +426,7 @@ class Ball:
         self.posx = WIDTH // 2
         self.posy = HEIGHT - 150
         self.xFac, self.yFac = 1, -1
+        self.zap = 0
         self._syncRect()
 
     def hit(self):
@@ -509,6 +555,7 @@ def main():
                 ball.hit()
                 block.hit()
                 spawnPopup(block.getRect())
+                ball.zap = 6  # petir kuat selama beberapa frame
 
                 if block.getHealth() <= 0:
                     spawnShards(block.getRect(), block.color)
